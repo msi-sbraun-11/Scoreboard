@@ -1,51 +1,78 @@
-// simple scoreboard for 6 instructions
+// simple scoreboard for 6 instructions: primarily for the Floating-Point unit
 #include <stdbool.h>
+#include <stdio.h>
+
 #define ADD1 0
 #define ADD2 1
 #define MUL1 2
 #define MUL2 3
 #define DIV 4
-#define INTUNIT 5
+#define ADDER 5
 
 typedef struct record
 {
-    bool busy;
-    char op[7];
-    short int Fi, Fj, Fk;
-    char Qi[7], Qj[7], Qk[7];
-    bool Rj, Rk;
+    bool busy;            // is the functional unit being used?
+    char op[7];           // opcode
+    short int Fi, Fj, Fk; // destination, source1, source2
+    char Qj[7], Qk[7];    // functional units producing Fj and Fk
+    bool Rj, Rk;          // is Fj and Fk available?
 }record;
 
-int R[32];      // integer register file
+int R[32];      // Integer register file
 float F[16];    // FP register file
 
-short int FPAdder[2][2], // 2 add units; s, t; takes 2 cycles for EX
-    FPMul[2][2],   // 1 multiply units; s, t; takes 6 cycles for EX
-    FPDiv[1][2],   // 1 division unit; s, t; takes 11 cycles for EX
-    IntALU[1][2];  // 1 integer unit; s, t; takes 1 cycle for EX
+short int FPAdder[2][2], // 2 add units; s, t;          takes 2 cycles for EX
+    FPMul[2][2],         // 1 multiply units; s, t;     takes 6 cycles for EX
+    FPDiv[1][2],         // 1 division unit; s, t;      takes 11 cycles for EX
+    Adder[1][2];        // 1 adder for calculating 
+                        // effective address; s, t;     takes 1 cycle for EX
 
 /** components of the Scoreboard **/
-short int InstStatus[6][4]; // for 6 instructions only
-record Scoreboard[6]; // functional units
+
+short int InstStatus[6][4];     // for 6 instructions only
+record Scoreboard[6];           // functional units
 int RegStatus[16];
 
 void issue();
 void readOperands();
 void execute();
 void writeResult();
+void initializeScoreBoard();
 
 int main()
 {
     short int cycle = 0, inst_completed = 0;
-    while(inst_completed != 6)
+    FILE *file;
+    file = fopen("instructions.txt", "r");
+    char opcode[7], d[4], s[4], t[4];
+    initializeScoreBoard();
+    while(1)
     {
+        int result = fscanf(file, "%s %s %s %s", opcode, d, s, t);
+        if(result == EOF) break;
+        else
+        {
 
+        }
     }
 
     return 0;
 }
 
-void issue()
+void initializeScoreBoard()
 {
+    for(int i=0; i<6; i++)
+    {
+        Scoreboard[i].busy = false;
+        Scoreboard[i].Rj = Scoreboard[i].Rk = true;
+    }
+}
 
+void issue(char op[7], d[4], s[4], t[4])
+{
+    if(strcmp(op, "L.D") == 0)
+    {
+        if(Scoreboard[ADDER].busy == false)
+            
+    }
 }
