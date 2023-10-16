@@ -6,7 +6,7 @@
 #define ADD2 1
 #define MUL1 2
 #define MUL2 3
-#define DIV 4
+#define DIV1 4
 #define ADDER 5
 
 typedef struct record
@@ -41,7 +41,7 @@ void initializeScoreBoard();
 
 int main()
 {
-    short int cycle = 0, inst_completed = 0;
+    short int cycle = 0;
     FILE *file;
     file = fopen("instructions.txt", "r");
     char opcode[7], d[4], s[4], t[4];
@@ -73,6 +73,29 @@ void issue(char op[7], d[4], s[4], t[4])
     if(strcmp(op, "L.D") == 0)
     {
         if(Scoreboard[ADDER].busy == false)
-            
+
+    }
+    else if(strcmp(op, "S.D") == 0)
+    {
+        if(Scoreboard[ADDER].busy == false)
+
+    }
+    else if(strcmp(op, "MUL.D") == 0)
+    {
+        if(Scoreboard[MUL1].busy == false)
+
+        else if(Scoreboard[MUL2].busy == false)
+
+    }
+    else if(strcmp(op, "ADD.D") == 0)
+    {
+        if(Scoreboard[ADD1].busy == false)
+
+        else if(Scoreboard[ADD2].busy == false)
+    }
+    else if(strcmp(op, "DIV.D") == 0)
+    {
+        if(Scoreboard[DIV1].busy == false)
+
     }
 }
