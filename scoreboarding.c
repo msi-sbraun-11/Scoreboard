@@ -68,12 +68,14 @@ void initializeScoreBoard()
     }
 }
 
-void issue(char op[7], d[4], s[4], t[4])
+void issue(char op[7], char d[4], char s[4], char t[4])
 {
     if(strcmp(op, "L.D") == 0)
     {
         if(Scoreboard[ADDER].busy == false)
-
+        {
+            
+        }
     }
     else if(strcmp(op, "S.D") == 0)
     {
