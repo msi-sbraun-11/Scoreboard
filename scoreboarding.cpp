@@ -27,12 +27,12 @@ using namespace std;
 class record
 {
     bool busy;            // is the functional unit being used?
-    string op;            // opcode
+    short int op;         // opcode
     short int Fi, Fj, Fk; // destination, source1, source2
     short int Qj, Qk;     // functional units producing Fj and Fk
     bool Rj, Rk;          // is Fj and Fk available?
     short int StallsLeft; // need to count how many stalls left; helps in indicating that the instruction has executed
-    short int InstStatus; // useful to knoiw at which clock cycle instruction finished its stage
+    short int InstStatus; // useful to know at which clock cycle instruction finished its stage
 
     public:
         record()
@@ -48,7 +48,8 @@ class record
 
 class scoreboard
 {
-    list<record> fu_status(NUM_FU);     // functional unit status
+    int cycle;
+    vector<record> fu_status(NUM_FU);     // functional unit status
     vector<int> R(INTREGFILESIZE);      // Integer register file
     vector<float> F(FLOATREGFILESIZE);  // FP register file
     vector<int> FloatRegStatus(-1, FLOATREGFILESIZE), IntRegStatus(-1, INTREGFILESIZE); // register status
@@ -56,22 +57,36 @@ class scoreboard
     // we are giving register number, not the value as such; so let's make it <int,int>.
     // In the readOperands() and execute() function, we can get the value and pass.
 
-    vector<pair<int, int>> FPAdder(NUM_FPADD),     // 2 add units; s, t;          takes 2 cycles for EX
+    /* vector<pair<float, float>> FPAdder(NUM_FPADD), // 2 add units; s, t;          takes 2 cycles for EX
             FPMul(NUM_FPMUL),                      // 2 multiply units; s, t;     takes 6 cycles for EX
             FPDiv(NUM_FPDIV);                      // 1 division unit; s, t;      takes 11 cycles for E
     vector<pair<int, int>> Adder(NUM_ADDER);       // 1 adder for calculating 
-                                                   // effective address; s, t;    takes 1 cycle for EX
+                                                   // effective address; s, t;    takes 1 cycle for EX */
+
+    void setrecord(int, int, int, int, int);
     public:
         bool issue(string, int, int, int);
-        void readOperands(scoreboard*);
-    void execute(scoreboard*);
-    void writeResult(scoreboard*);
+        bool readOperands(int);
+        bool execute();
+        bool writeResult();
 };
 
-scoreboard::scoreboard()
+void setrecord(int fu, int opcode, int d, int s, int t)
 {
-    FloatRegStatus = {-1};
-    IntRegStatus = {-1};
+    fu_status[fu].busy = true;
+    fu_status[fu].op = opcode;
+    fu_status[fu].Fi = d;
+    fu_status[fu].Fj = s;
+    fu_status[fu].Fk = t;
+    FloatRegStatus[fu_status[fu].Fi] = fu;
+    fu_status[fu].Qj = FloatRegStatus[Fj];
+    fu_status[fu].Qk = FloatRegStatus[Fk];
+    if(fu_status[fu].Qj == -1)
+        fu_status[fu].Rj = true;
+    else fu_status[fu].Rj = false;
+    if(fu_status[fu].Qk == -1)
+        fu_status[fu].Rk = true;
+    else fu_status[fu].Rk = false;
 }
 
 bool scoreboard::issue(string op, int d, int s, int t) // need to take care of offset shift to diff bw IntRegFile and FloatRegFile
@@ -88,10 +103,10 @@ bool scoreboard::issue(string op, int d, int s, int t) // need to take care of o
     switch(optab[op])
     {
         case 0: 
-                if(not /* ! */ fu_status[ADDER].busy /* && */ and
+                if(!fu_status[ADDER].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
-                    Adder.push_back(make_pair(s, t));
+                    setrecord(ADDER, optab[op], d, s, t);
                     issued = true;
                 }    
                 else
@@ -99,10 +114,10 @@ bool scoreboard::issue(string op, int d, int s, int t) // need to take care of o
                 break;
 
         case 1:
-                if(not /* ! */ fu_status[ADDER].busy /* && */ and
+                if(!fu_status[ADDER].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
-                    Adder.push_back(make_pair(s, t));
+                    setrecord(ADDER, optab[op], d, s, t);
                     issued = true;
                 }    
                 else
@@ -110,16 +125,16 @@ bool scoreboard::issue(string op, int d, int s, int t) // need to take care of o
                 break;
 
         case 2:
-                if(not /* ! */ fu_status[MUL1].busy /* && */ and
+                if(!fu_status[MUL1].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
-                    FPMul[0].push_back(make_pair(s, t));
+                    setrecord(MUL1, optab[op], d, s, t);
                     issued = true;
                 }    
-                else if(not /* ! */ fu_status[MUL2].busy /* && */ and
+                else if(!fu_status[MUL2].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
-                    FPMul[1].push_back(make_pair(s, t));
+                    setrecord(MUL2, optab[op], d, s, t);
                     issued = true;
                 }
                 else
@@ -127,27 +142,31 @@ bool scoreboard::issue(string op, int d, int s, int t) // need to take care of o
                 break;
 
         case 3:
-                if(not /* ! */ fu_status[ADD1].busy /* && */ and
+                if(!fu_status[ADD1].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
-                    FPAdder[0].push_back(make_pair(s, t));
+                    setrecord(ADD1, optab[op], d, s, t);
                     issued = true;
                 }
-                else if(not /* ! */ fu_status[ADD2].busy /* && */ and
+                else if(!fu_status[ADD2].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
-                    FPAdder[1].push_back(make_pair(s, t));
+                    setrecord(ADD2, optab[op], d, s, t);
                     issued = true;
                 }
+                else
+                    issued = false;
                 break;
 
         case 4:
-                if(not /* ! */ fu_status[DIV1].busy /* && */ and
+                if(!fu_status[DIV1].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
-                    FPDiv[0].push_back(make_pair(s, t));
+                    setrecord(DIV1, optab[op], d, s, t);
                     issued = true;
                 }
+                else
+                    issued = false;
                 break;
     }
 
@@ -192,13 +211,35 @@ bool scoreboard::issue(string op, int d, int s, int t) // need to take care of o
     } */
 }
 
+bool readOperands(int fu) // doesn't need any arguments because all the data that it needs is present in the status table
+{
+    if(fu_status[fu].Rj && fu_status[fu].Rk)
+    {
+        fu_status[fu].Fj = FloatRegStatus[fu_status[fu].Fj];
+        fu_status[fu].Fk = FloatRegStatus[fu_status[fu].Fk];
+        return true;
+    }    
+    else
+        return false;
+}
+
+bool execute()
+{
+
+}
+
+bool writeResult()
+{
+
+}
+
 int main()
 {
-    short int cycle = 0;
+    // short int cycle = 0;
     FILE *file;
     file = fopen("instructions.txt", "r");
     char opcode[7], d[4], s[4], t[4];
-    initializeScoreBoard();
+    // initializeScoreBoard();
     while(1)
     {
         int result = fscanf(file, "%s %s %s %s", opcode, d, s, t);
