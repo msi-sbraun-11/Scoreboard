@@ -1,5 +1,6 @@
 // simple scoreboard for 6 instructions: primarily for the Floating-Point unit
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <algorithm>
@@ -26,7 +27,7 @@ using namespace std;
 
 class record
 {
-    enum{ADD, MUL, DIV, ADDER} FuncUnitType;
+    // enum{ADD, MUL, DIV, ADDER} FuncUnitType;
     enum {add, mul, div, load, store};
     bool busy;            // is the functional unit being used?
     short int op;         // opcode
@@ -35,12 +36,13 @@ class record
     bool Rj, Rk;          // is Fj and Fk available?
     bool immediate;       // is the instruction an immediate instruction? (needed for LOAD and STORE operations)
     short int StallsLeft; // need to count how many stalls left; helps in indicating that the instruction has executed
-    short int InstStatus; // useful to know at which clock cycle instruction finished its stage
+    vector<short int> InstStatus; // useful to know at which clock cycle instruction finished its stage
     union
     {
         float ValF;
         int ValI;
     }Vj, Vk;
+    auto temp;
 
     public:
         record()
@@ -50,7 +52,6 @@ class record
             Qj = Qk = -1;
             Rj = Rk = false;
             StallsLeft = 0;
-            InstStatus = 0;
         }
         friend class scoreboard;    
 };
@@ -58,26 +59,27 @@ class record
 class scoreboard
 {
     int cycle;
-    vector<record> fu_status(NUM_FU);     // functional unit status
-    vector<int> R(INTREGFILESIZE);      // Integer register file FLOATREGFILESIZE...FLOATREGFILESIZE+INTREGFILESIZE-1
-    vector<float> F(FLOATREGFILESIZE);  // FP register file 0...FLOATREGFILESIZE-1
+    vector<record> fu_status(NUM_FU);       // functional unit status
+    vector<int> R(INTREGFILESIZE);          // Integer register file FLOATREGFILESIZE...FLOATREGFILESIZE+INTREGFILESIZE-1
+    vector<float> F(FLOATREGFILESIZE);      // FP register file 0...FLOATREGFILESIZE-1
     vector<int> FloatRegStatus(-1, FLOATREGFILESIZE), IntRegStatus(-1, INTREGFILESIZE); // register status
 
     // we are giving register number, not the value as such; so let's make it <int,int>.
     // In the readOperands() and execute() function, we can get the value and pass.
 
-    /* vector<pair<float, float>> FPAdder(NUM_FPADD), // 2 add units; s, t;          takes 2 cycles for EX
-            FPMul(NUM_FPMUL),                         // 2 multiply units; s, t;     takes 6 cycles for EX
-            FPDiv(NUM_FPDIV);                         // 1 division unit; s, t;      takes 11 cycles for E
-    vector<pair<int, int>> Adder(NUM_ADDER);          // 1 adder for calculating 
-                                                      // effective address; s, t;    takes 1 cycle for EX */
-
+    // FPADD 3 cycles for EX
+    // FPMUL 5 cycles for EX
+    // FPDIV 11 cycles for EX
+    // ADDER 1 cycle for calculating effective address; 1 cycle for reading from/writing to memory
+    // therefore 2 cycles for EX
+    
     void setrecord(int, int, int, int, int);
     public:
         bool issue(string, int, int, int, bool);
         bool readOperands(int);
-        bool execute();
+        bool execute(int);
         bool writeResult();
+        void ExecutionLoop();
 };
 
 void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
@@ -85,7 +87,7 @@ void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
     auto rec = fu_status[fu];
     rec.busy = true;
     rec.op = opcode;
-    switch(rec.op)
+    /* switch(rec.op)
     {
         case add: rec.FuncUnitType = ADD;
                   break;
@@ -96,7 +98,7 @@ void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
         case load:
         case store: rec.FuncUnitType = ADDER;
                     break;
-    }
+    } */
     rec.immediate = imm;
     rec.Fi = d;
     rec.Fj = s;
@@ -110,6 +112,14 @@ void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
     if(rec.Qk == -1)
         rec.Rk = true;
     else rec.Rk = false;
+    if(rec.op == add)
+        rec.StallsLeft = 3;
+    else if(rec.op == mul)
+        rec.StallsLeft = 5;
+    else if(rec.op == div)
+        rec.StallsLeft = 11;
+    else if(rec.op == load || rec.op == store)
+        rec.StallsLeft = 2;
 }
 
 bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take care of offset shift to diff bw IntRegFile and FloatRegFile
@@ -255,31 +265,49 @@ bool scoreboard::readOperands(int fu) // doesn't need any more arguments because
 
 bool scoreboard::execute(int fu)
 {
-    auto temp;
+    auto rec;
+    rec = fu_status[fu];
+    if(StallsLeft != 0)
+    {
+        StallsLeft -= 1;
+        return false;
+    }
+    else
+    {
+        if(rec.op == add)
+            temp = rec.Vj.ValF + rec.Vk.ValF;
+        else if(rec.op == mul)
+            temp = rec.Vj.ValF * rec.Vk.ValF;
+        else if(rec.op == div)
+            temp = rec.Vj.ValF / rec.Vk.ValF;
+        else if(rec.op == load || rec.op == store)
+            temp = rec.Vj.ValI + rec.Vk.ValI;
+        return true;
+    }
+}
+
+bool scoreboard::writeResult(int fu)
+{
+    auto rec = fu_status[fu];
     
 }
 
-bool writeResult()
+void scoreboard::ExecutionLoop()
 {
-
+    ifstream filein("instructions.txt");
+    string s;
+    while(1)
+    {
+        getline(filein, s);
+        if(s.isempty()) // EOF
+            break;
+        
+    }
+    
 }
 
 int main()
 {
-    // short int cycle = 0;
-    FILE *file;
-    file = fopen("instructions.txt", "r");
-    char opcode[7], d[4], s[4], t[4];
-    // initializeScoreBoard();
-    while(1)
-    {
-        int result = fscanf(file, "%s %s %s %s", opcode, d, s, t);
-        if(result == EOF) break;
-        else
-        {
-
-        }
-    }
-
+    
     return 0;
 }
