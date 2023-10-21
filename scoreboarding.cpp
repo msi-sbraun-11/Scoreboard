@@ -20,15 +20,22 @@ using namespace std;
 #define NUM_FU 6
 #define INTREGFILESIZE 32
 #define FLOATREGFILESIZE 16
+#define MEMSIZE 512
 #define NUM_FPADD 2
 #define NUM_FPMUL 2
 #define NUM_FPDIV 1
 #define NUM_ADDER 1
 
+enum {ADD, MUL, DIV, LOAD, STORE};
+union numeric
+{
+    float ValF;
+    int ValI;
+};
+
 class record
 {
     // enum{ADD, MUL, DIV, ADDER} FuncUnitType;
-    enum {add, mul, div, load, store};
     bool busy;            // is the functional unit being used?
     short int op;         // opcode
     short int Fi, Fj, Fk; // destination, source1, source2
@@ -37,12 +44,7 @@ class record
     bool immediate;       // is the instruction an immediate instruction? (needed for LOAD and STORE operations)
     short int StallsLeft; // need to count how many stalls left; helps in indicating that the instruction has executed
     vector<short int> InstStatus; // useful to know at which clock cycle instruction finished its stage
-    union
-    {
-        float ValF;
-        int ValI;
-    }Vj, Vk;
-    auto temp;
+    numeric Vj, Vk, temp;
 
     public:
         record()
@@ -52,6 +54,7 @@ class record
             Qj = Qk = -1;
             Rj = Rk = false;
             StallsLeft = 0;
+            immediate = false;
         }
         friend class scoreboard;    
 };
@@ -63,7 +66,7 @@ class scoreboard
     vector<int> R(INTREGFILESIZE);          // Integer register file FLOATREGFILESIZE...FLOATREGFILESIZE+INTREGFILESIZE-1
     vector<float> F(FLOATREGFILESIZE);      // FP register file 0...FLOATREGFILESIZE-1
     vector<int> FloatRegStatus(-1, FLOATREGFILESIZE), IntRegStatus(-1, INTREGFILESIZE); // register status
-
+    vector<numeric> Memory(MEMSIZE);
     // we are giving register number, not the value as such; so let's make it <int,int>.
     // In the readOperands() and execute() function, we can get the value and pass.
 
@@ -74,11 +77,12 @@ class scoreboard
     // therefore 2 cycles for EX
     
     void setrecord(int, int, int, int, int);
+    void resetRecord(int);
     public:
         bool issue(string, int, int, int, bool);
         bool readOperands(int);
         bool execute(int);
-        bool writeResult();
+        bool writeResult(int);
         void ExecutionLoop();
 };
 
@@ -112,14 +116,25 @@ void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
     if(rec.Qk == -1)
         rec.Rk = true;
     else rec.Rk = false;
-    if(rec.op == add)
-        rec.StallsLeft = 3;
-    else if(rec.op == mul)
-        rec.StallsLeft = 5;
-    else if(rec.op == div)
-        rec.StallsLeft = 11;
-    else if(rec.op == load || rec.op == store)
-        rec.StallsLeft = 2;
+    unordered_map<string, int> mapStallsLeft = {
+        {ADD, 3},
+        {MUL, 5},
+        {DIV, 11},
+        {LOAD, 2},
+        {STORE, 2}
+    };
+    rec.StallsLeft = mapStallsLeft[rec.op];
+}
+
+void scoreboard::resetRecord(int fu)
+{
+    auto rec = fu_status[fu];
+    rec.busy = false;
+    rec.Fi = Fj = Fk = -1;
+    rec.Qj = Qk = -1;
+    rec.Rj = Rk = false;
+    rec.StallsLeft = 0;
+    rec.immediate = false;
 }
 
 bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take care of offset shift to diff bw IntRegFile and FloatRegFile
@@ -131,18 +146,18 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
         {"MUL.D", 1},
         {"ADD.D", 2},
         {"DIV.D", 3}, */
-        {"ADD.D", add},
-        {"MUL.D", mul},
-        {"DIV.D", div},
-        {"L.D", load},
-        {"S.D", store}
+        {"ADD.D", ADD},
+        {"MUL.D", MUL},
+        {"DIV.D", DIV},
+        {"L.D", LOAD},
+        {"S.D", STORE}
     };
     bool issued = false; // We need to indicate that the instruction has been issued so that in the execution loop, 
                          // we can move to the next stage
 
     switch(optab[op])
     {
-        case load: 
+        case LOAD: 
                 if(!fu_status[ADDER].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
@@ -151,7 +166,7 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
                 }    
                 break;
 
-        case store:
+        case STORE:
                 if(!fu_status[ADDER].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
@@ -160,7 +175,7 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
                 }    
                 break;
 
-        case mul:
+        case MUL:
                 if(!fu_status[MUL1].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
@@ -175,7 +190,7 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
                 }
                 break;
 
-        case add:
+        case ADD:
                 if(!fu_status[ADD1].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
@@ -190,7 +205,7 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
                 }
                 break;
 
-        case div:
+        case DIV:
                 if(!fu_status[DIV1].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), d) == FloatRegStatus.end())
                 {
@@ -199,46 +214,9 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
                 }
                 break;
     }
-
+    if(issued)
+        InstStatus.push_back(cycle);
     return issued;
-/*  if(strcmp(op, "L.D") == 0)
-    {
-        if(Scoreboard[ADDER].busy == false)
-        {
-            
-        }
-        else 
-            return false;
-    }
-    else if(strcmp(op, "S.D") == 0)
-    {
-        if(Scoreboard[ADDER].busy == false)
-        {
-            
-        }
-        else 
-            return false;
-    }
-    else if(strcmp(op, "MUL.D") == 0)
-    {
-        if(Scoreboard[MUL1].busy == false)
-        {
-            
-        }
-        else if(Scoreboard[MUL2].busy == false)
-
-    }
-    else if(strcmp(op, "ADD.D") == 0)
-    {
-        if(Scoreboard[ADD1].busy == false)
-
-        else if(Scoreboard[ADD2].busy == false)
-    }
-    else if(strcmp(op, "DIV.D") == 0)
-    {
-        if(Scoreboard[DIV1].busy == false)
-
-    } */
 }
 
 bool scoreboard::readOperands(int fu) // doesn't need any more arguments because all the data that it needs is present in the status table
@@ -257,6 +235,7 @@ bool scoreboard::readOperands(int fu) // doesn't need any more arguments because
             rec.Vk.ValF = F[rec.Fk];
         else
             rec.Vk.ValI = R[rec.Fk-16];
+        InstStatus.push_back(cycle);
         return true;
     }    
     else
@@ -274,14 +253,18 @@ bool scoreboard::execute(int fu)
     }
     else
     {
-        if(rec.op == add)
+        if(rec.op == ADD)
             temp = rec.Vj.ValF + rec.Vk.ValF;
-        else if(rec.op == mul)
+        else if(rec.op == MUL)
             temp = rec.Vj.ValF * rec.Vk.ValF;
-        else if(rec.op == div)
+        else if(rec.op == DIV)
             temp = rec.Vj.ValF / rec.Vk.ValF;
-        else if(rec.op == load || rec.op == store)
-            temp = rec.Vj.ValI + rec.Vk.ValI;
+        else if(rec.op == LOAD || rec.op == STORE)
+        {
+            int effectiveaddress = rec.Vj.ValI + rec.Vk.ValI;
+            temp = Memory[effectiveaddress];
+        } 
+        InstStatus.push_back(cycle);   
         return true;
     }
 }
@@ -289,20 +272,18 @@ bool scoreboard::execute(int fu)
 bool scoreboard::writeResult(int fu)
 {
     auto rec = fu_status[fu];
-    
+    for(int i = 0; i < NUM_FU; i++)
+    {
+        if(i != fu && (fu_status[i].Fj == rec.Fi || fu_status[i].Fk == rec.Fi))
+            return false;
+    }
+    F[rec.Fi] = temp;
+    InstStatus.push_back(cycle);
+    return true;
 }
 
 void scoreboard::ExecutionLoop()
 {
-    ifstream filein("instructions.txt");
-    string s;
-    while(1)
-    {
-        getline(filein, s);
-        if(s.isempty()) // EOF
-            break;
-        
-    }
     
 }
 
