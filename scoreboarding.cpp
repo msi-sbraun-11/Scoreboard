@@ -141,11 +141,7 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
 {
     // add 0 mul 1 div 2 load 3 store 4
     unordered_map<string, int> optab = {
-        /* {"L.D", 0},
-        {"S.D", 0},
-        {"MUL.D", 1},
-        {"ADD.D", 2},
-        {"DIV.D", 3}, */
+        /* {"L.D", 0}, {"S.D", 0}, {"MUL.D", 1}, {"ADD.D", 2}, {"DIV.D", 3}, */
         {"ADD.D", ADD},
         {"MUL.D", MUL},
         {"DIV.D", DIV},
@@ -215,7 +211,7 @@ bool scoreboard::issue(string op, int d, int s, int t, bool imm) // need to take
                 break;
     }
     if(issued)
-        InstStatus.push_back(cycle);
+        rec.InstStatus.push_back(cycle);
     return issued;
 }
 
@@ -235,7 +231,7 @@ bool scoreboard::readOperands(int fu) // doesn't need any more arguments because
             rec.Vk.ValF = F[rec.Fk];
         else
             rec.Vk.ValI = R[rec.Fk-16];
-        InstStatus.push_back(cycle);
+        rec.InstStatus.push_back(cycle);
         return true;
     }    
     else
@@ -264,7 +260,7 @@ bool scoreboard::execute(int fu)
             int effectiveaddress = rec.Vj.ValI + rec.Vk.ValI;
             temp = Memory[effectiveaddress];
         } 
-        InstStatus.push_back(cycle);   
+        rec.InstStatus.push_back(cycle);   
         return true;
     }
 }
@@ -278,7 +274,7 @@ bool scoreboard::writeResult(int fu)
             return false;
     }
     F[rec.Fi] = temp;
-    InstStatus.push_back(cycle);
+    rec.InstStatus.push_back(cycle);
     return true;
 }
 
