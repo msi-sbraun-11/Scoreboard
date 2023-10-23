@@ -20,7 +20,7 @@ using namespace std;
 #define NUMFU 6
 #define INTREGFILESIZE 32
 #define FLOATREGFILESIZE 16
-#define MEMSIZE 512
+#define MEMSIZE 128
 #define NUM_FPADD 2
 #define NUM_FPMUL 2
 #define NUM_FPDIV 1
@@ -101,6 +101,22 @@ class scoreboard
     void resetRecord(int);
     string ReadInstruction(ifstream&);
     InstFormat Parse(string);
+    void printMemory()
+    {
+        for(int i=0; i<Memory.size(); i++)
+            if(Memory[i].ValI != 0 or Memory[i].ValF != 0)
+                cout<<i<<" "<<Memory[i].ValI<<","<<Memory[i].ValF<<endl;
+    }
+    void printFR()
+    {
+        for(int i=0; i<F.size(); i++)
+                cout<<i<<" "<<F[i]<<endl;
+    }
+    void printIR()
+    {
+        for(int i=0; i<R.size(); i++)
+                cout<<i<<" "<<R[i]<<endl;
+    }
     public:
         scoreboard()
         {
@@ -124,29 +140,20 @@ void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
     auto &rec = fu_status[fu];
     rec.busy = true;
     rec.op = opcode;
-    /* switch(rec.op)
-    {
-        case add: rec.FuncUnitType = ADD;
-                  break;
-        case mul: rec.FuncUnitType = MUL;
-                  break;
-        case div: rec.FuncUnitType = DIV;
-                  break;
-        case load:
-        case store: rec.FuncUnitType = ADDER;
-                    break;
-    } */
     rec.immediate = imm;
     rec.Fi = d;
     rec.Fj = s;
     rec.Fk = t;
-    FloatRegStatus[rec.Fi] = fu;
-    rec.Qj = FloatRegStatus[rec.Fj];
-    if(rec.Fk < FLOATREGFILESIZE)
+    if(!rec.immediate)
+    {   rec.Qj = FloatRegStatus[rec.Fj];
         rec.Qk = FloatRegStatus[rec.Fk];
+    }
     else
+    {
+        rec.Qj = -1;
         rec.Qk = IntRegStatus[rec.Fk-FLOATREGFILESIZE];
-    cout<<"Inside setrecord() "<<rec.Fj<<" "<<rec.Fk<<" "<<rec.Qj<<" "<<rec.Qk<<endl;
+    }
+    //cout<<"Inside setrecord() "<<rec.Fj<<" "<<rec.Fk<<" "<<rec.Qj<<" "<<rec.Qk<<endl;
     if(rec.Qj == -1)
         rec.Rj = true;
     else rec.Rj = false;
@@ -158,6 +165,7 @@ void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
 
 void scoreboard::resetRecord(int fu)
 {
+    cout<<"Inside resetrecord()"<<endl;
     auto &rec = fu_status[fu];
     rec.busy = false;
     rec.Fi = rec.Fj = rec.Fk = -1;
@@ -200,10 +208,7 @@ string scoreboard::ReadInstruction(ifstream &ifile)
     return line;
 }
 
-
 bool scoreboard::issue(InstFormat IFormat)
-        /* string op, int d, int s, int t, bool imm */ 
-// need to take care of offset shift to diff bw IntRegFile and FloatRegFile
 {
     // add 0 mul 1 div 2 load 3 store 4
     bool issued = false; // We need to indicate that the instruction has been issued so that in the execution loop, 
@@ -216,7 +221,7 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(ADDER, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADDER].InstStatus.push_back(cycle);
+                    fu_status[ADDER].InstStatus.push_back(cycle+1);
                 }    
                 break;
 
@@ -226,7 +231,7 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(ADDER, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADDER].InstStatus.push_back(cycle);
+                    fu_status[ADDER].InstStatus.push_back(cycle+1);
                 }    
                 break;
 
@@ -236,14 +241,14 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(MUL1, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADD1].InstStatus.push_back(cycle);
+                    fu_status[ADD1].InstStatus.push_back(cycle+1);
                 }    
                 else if(!fu_status[MUL2].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), IFormat.d) == FloatRegStatus.end())
                 {
                     setrecord(MUL2, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[MUL2].InstStatus.push_back(cycle);
+                    fu_status[MUL2].InstStatus.push_back(cycle+1);
                 }
                 break;
 
@@ -253,14 +258,14 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(ADD1, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADD1].InstStatus.push_back(cycle);
+                    fu_status[ADD1].InstStatus.push_back(cycle+1);
                 }
                 else if(!fu_status[ADD2].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), IFormat.d) == FloatRegStatus.end())
                 {
                     setrecord(ADD2, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADD2].InstStatus.push_back(cycle);
+                    fu_status[ADD2].InstStatus.push_back(cycle+1);
                 }
                 break;
 
@@ -270,34 +275,38 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(DIV1, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[DIV1].InstStatus.push_back(cycle);
+                    fu_status[DIV1].InstStatus.push_back(cycle+1);
                 }
                 break;
     }    
-    if(issued)    
-    cout<<optab[IFormat.op_string]<<" "<<cycle<<" "<<"Issue stage done"<<endl;
     return issued;
 }
 
 bool scoreboard::readOperands(int fu) // doesn't need any more arguments because all the data that it needs is present in the status table
 {
-    cout<<fu<<" "<<cycle<<" "<<"readOperands"<<endl;
+    //cout<<fu<<" "<<cycle<<" "<<"readOperands"<<endl;
     auto &rec = fu_status[fu];
+    if(rec.op == STORE)
+    {
+        return true;
+    }
     if(rec.Rj && rec.Rk)
     {
+        FloatRegStatus[rec.Fi] = fu;
         // If immediate, load the value itself
-        if(rec.immediate)
-            rec.Vj.ValI = rec.Fj;
-        else
-            rec.Vj.ValF = F[rec.Fj];
         // I am addressing from where to load here itself; 
         // so the convention that we are maintaining is 0...15-FPRegister file and 16...47-IntRegisterFile
-        if(rec.Fk < FLOATREGFILESIZE)
-            rec.Vk.ValF = F[rec.Fk];
-        else
+        if(rec.immediate)
+        {
+            rec.Vj.ValI = rec.Fj;
             rec.Vk.ValI = R[rec.Fk-FLOATREGFILESIZE];
+        }    
+        else
+        {
+            rec.Vj.ValF = F[rec.Fj];
+            rec.Vk.ValF = F[rec.Fk];
+        }    
         rec.InstStatus.push_back(cycle);
-        cout<<fu<<" "<<cycle<<" "<<"readOperands done"<<endl;
         return true;
     }    
     else
@@ -306,7 +315,6 @@ bool scoreboard::readOperands(int fu) // doesn't need any more arguments because
 
 bool scoreboard::execute(int fu)
 {
-    cout<<fu<<" "<<cycle<<" "<<"execute stage"<<endl;
     auto &rec = fu_status[fu];
     if(rec.StallsLeft)
     {
@@ -324,26 +332,27 @@ bool scoreboard::execute(int fu)
         else if(rec.op == LOAD)
         {
             int effectiveaddress = rec.Vj.ValI + rec.Vk.ValI;
-            rec.temp = Memory[effectiveaddress];
+            rec.temp.ValI = Memory[effectiveaddress].ValI;
+            rec.temp.ValF = Memory[effectiveaddress].ValF;
         } 
         else if(rec.op == STORE)
         {
             int effectiveaddress = rec.Vj.ValI + rec.Vk.ValI;
-            Memory[effectiveaddress] = rec.temp;
+            Memory[effectiveaddress].ValF = rec.Fi;
         }
         rec.InstStatus.push_back(cycle);   
-        cout<<fu<<" "<<cycle<<" "<<"execute stage done"<<endl;
         return true;
     }
 }
 
 bool scoreboard::writeResult(int fu)
 {
-    cout<<fu<<" "<<cycle<<" "<<"writeResult"<<endl;
     auto &rec = fu_status[fu];
-    // record *temprec;
-    F[rec.Fi] = rec.temp.ValF;
-    FloatRegStatus[rec.Fi] = -1;
+    if(rec.op != STORE)
+    {
+        F[rec.Fi] = rec.temp.ValF;
+        FloatRegStatus[rec.Fi] = -1;
+    }
     // Eliminate dependencies of other instructions
     for(int i = 0; i < NUMFU; i++)
     {
@@ -362,10 +371,9 @@ bool scoreboard::writeResult(int fu)
             }             
         }
     }
-    rec.InstStatus.push_back(cycle);
+    rec.InstStatus.push_back(cycle+1);
     // some writing should happen here
-    //resetRecord(fu);
-    cout<<fu<<" "<<cycle<<" "<<"writeResult done"<<endl;
+    resetRecord(fu);
     return true;
 }
 
@@ -373,12 +381,11 @@ void scoreboard::ExecutionLoop(ifstream &ifs)
 {
     int fu, l; bool ReadNext = true, ph; string inst;
     InstFormat tempstruct;
-    for(cycle = 0; cycle < 10/* not ifs.eof() */; cycle++)
+    while(true)
     {
         if(ReadNext)
         {
             inst = ReadInstruction(ifs);
-            cout<<cycle<<" "<<inst<<endl;
             tempstruct = Parse(inst);
         }
         for(fu = 0; fu < NUMFU; fu++)
@@ -387,27 +394,36 @@ void scoreboard::ExecutionLoop(ifstream &ifs)
             switch(l)
             {
                 case 0: ReadNext = issue(tempstruct);
-                        if(ReadNext) cout<<"Issued"<<endl;
+                        if(ReadNext) {cout<<"Issued"<<endl; }
                         break;
                 case 1: ph = readOperands(fu); 
-                        if(ph) cout<<"READ Operands"<<endl;
+                        if(ph) {cout<<"READ Operands"<<endl;}
                         break;
                 case 2: ph = execute(fu); 
-                        if(ph) cout<<"executed"<<endl;
+                        if(ph) {cout<<"executed"<<endl;}
                         break;
                 case 3: ph = writeResult(fu); 
-                        if(ph) cout<<"written result"<<endl;
+                        if(ph) {cout<<"written result"<<endl;}
                         break;
             }
-        }        
+        }    
+        cycle += 1;
+        cout<<"cycle "<<cycle<<endl;
+        if(cycle > 20)
+            break;
     }
+    printFR();
+    cout<<endl;
+    printIR();
+    cout<<endl;
+    printMemory();
 }
 
 int main()
 {
     scoreboard SCOREBOARD;
     ifstream ifs;
-    ifs.open("instructions.txt", ifstream::in);
+    ifs.open("instructions1.txt", ifstream::in);
     SCOREBOARD.ExecutionLoop(ifs);
     
     return 0;
