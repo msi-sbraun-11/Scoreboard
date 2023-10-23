@@ -380,30 +380,29 @@ bool scoreboard::writeResult(int fu)
 void scoreboard::ExecutionLoop(ifstream &ifs)
 {
     int fu, l; bool ReadNext = true, ph; string inst;
-    InstFormat tempstruct;
+    InstFormat inststruct;
     while(true)
     {
         if(ReadNext)
         {
             inst = ReadInstruction(ifs);
-            tempstruct = Parse(inst);
+            inststruct = Parse(inst);
         }
+        ReadNext = issue(inststruct);
+        cycle += 1;
         for(fu = 0; fu < NUMFU; fu++)
         {
             l = fu_status[fu].InstStatus.size();
             switch(l)
             {
-                case 0: ReadNext = issue(tempstruct);
-                        if(ReadNext) {cout<<"Issued"<<endl; }
-                        break;
                 case 1: ph = readOperands(fu); 
-                        if(ph) {cout<<"READ Operands"<<endl;}
+                        if(ph) {cout<<"READ Operands "<<fu<<endl;}
                         break;
                 case 2: ph = execute(fu); 
-                        if(ph) {cout<<"executed"<<endl;}
+                        if(ph) {cout<<"executed "<<fu<<endl;}
                         break;
                 case 3: ph = writeResult(fu); 
-                        if(ph) {cout<<"written result"<<endl;}
+                        if(ph) {cout<<"written result "<<fu<<endl;}
                         break;
             }
         }    
