@@ -321,11 +321,16 @@ bool scoreboard::execute(int fu)
             rec.temp.ValF = rec.Vj.ValF * rec.Vk.ValF;
         else if(rec.op == DIV)
             rec.temp.ValF = rec.Vj.ValF / rec.Vk.ValF;
-        else if(rec.op == LOAD || rec.op == STORE)
+        else if(rec.op == LOAD)
         {
             int effectiveaddress = rec.Vj.ValI + rec.Vk.ValI;
             rec.temp = Memory[effectiveaddress];
         } 
+        else if(rec.op == STORE)
+        {
+            int effectiveaddress = rec.Vj.ValI + rec.Vk.ValI;
+            Memory[effectiveaddress] = rec.temp;
+        }
         rec.InstStatus.push_back(cycle);   
         cout<<fu<<" "<<cycle<<" "<<"execute stage done"<<endl;
         return true;
