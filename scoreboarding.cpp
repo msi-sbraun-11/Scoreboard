@@ -142,7 +142,11 @@ void scoreboard::setrecord(int fu, int opcode, int d, int s, int t, bool imm)
     rec.Fk = t;
     FloatRegStatus[rec.Fi] = fu;
     rec.Qj = FloatRegStatus[rec.Fj];
-    rec.Qk = FloatRegStatus[rec.Fk];
+    if(rec.Fk < FLOATREGFILESIZE)
+        rec.Qk = FloatRegStatus[rec.Fk];
+    else
+        rec.Qk = IntRegStatus[rec.Fk-FLOATREGFILESIZE];
+    cout<<"Inside setrecord() "<<rec.Fj<<" "<<rec.Fk<<" "<<rec.Qj<<" "<<rec.Qk<<endl;
     if(rec.Qj == -1)
         rec.Rj = true;
     else rec.Rj = false;
@@ -204,7 +208,6 @@ bool scoreboard::issue(InstFormat IFormat)
     // add 0 mul 1 div 2 load 3 store 4
     bool issued = false; // We need to indicate that the instruction has been issued so that in the execution loop, 
                          // we can move to the next stage
-
     switch(optab[IFormat.op_string])
     {
         case LOAD: 
@@ -270,12 +273,15 @@ bool scoreboard::issue(InstFormat IFormat)
                     fu_status[DIV1].InstStatus.push_back(cycle);
                 }
                 break;
-    }        
+    }    
+    if(issued)    
+    cout<<optab[IFormat.op_string]<<" "<<cycle<<" "<<"Issue stage done"<<endl;
     return issued;
 }
 
 bool scoreboard::readOperands(int fu) // doesn't need any more arguments because all the data that it needs is present in the status table
 {
+    cout<<fu<<" "<<cycle<<" "<<"readOperands"<<endl;
     auto &rec = fu_status[fu];
     if(rec.Rj && rec.Rk)
     {
@@ -291,6 +297,7 @@ bool scoreboard::readOperands(int fu) // doesn't need any more arguments because
         else
             rec.Vk.ValI = R[rec.Fk-FLOATREGFILESIZE];
         rec.InstStatus.push_back(cycle);
+        cout<<fu<<" "<<cycle<<" "<<"readOperands done"<<endl;
         return true;
     }    
     else
@@ -299,6 +306,7 @@ bool scoreboard::readOperands(int fu) // doesn't need any more arguments because
 
 bool scoreboard::execute(int fu)
 {
+    cout<<fu<<" "<<cycle<<" "<<"execute stage"<<endl;
     auto &rec = fu_status[fu];
     if(rec.StallsLeft)
     {
@@ -319,12 +327,14 @@ bool scoreboard::execute(int fu)
             rec.temp = Memory[effectiveaddress];
         } 
         rec.InstStatus.push_back(cycle);   
+        cout<<fu<<" "<<cycle<<" "<<"execute stage done"<<endl;
         return true;
     }
 }
 
 bool scoreboard::writeResult(int fu)
 {
+    cout<<fu<<" "<<cycle<<" "<<"writeResult"<<endl;
     auto &rec = fu_status[fu];
     // record *temprec;
     F[rec.Fi] = rec.temp.ValF;
@@ -349,7 +359,8 @@ bool scoreboard::writeResult(int fu)
     }
     rec.InstStatus.push_back(cycle);
     // some writing should happen here
-    resetRecord(fu);
+    //resetRecord(fu);
+    cout<<fu<<" "<<cycle<<" "<<"writeResult done"<<endl;
     return true;
 }
 
@@ -357,7 +368,7 @@ void scoreboard::ExecutionLoop(ifstream &ifs)
 {
     int fu, l; bool ReadNext = true, ph; string inst;
     InstFormat tempstruct;
-    for(cycle = 0; not ifs.eof(); cycle++)
+    for(cycle = 0; cycle < 10/* not ifs.eof() */; cycle++)
     {
         if(ReadNext)
         {
@@ -374,7 +385,7 @@ void scoreboard::ExecutionLoop(ifstream &ifs)
                         if(ReadNext) cout<<"Issued"<<endl;
                         break;
                 case 1: ph = readOperands(fu); 
-                        if(ph) cout<<"read Operands"<<endl;
+                        if(ph) cout<<"READ Operands"<<endl;
                         break;
                 case 2: ph = execute(fu); 
                         if(ph) cout<<"executed"<<endl;
