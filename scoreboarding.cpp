@@ -381,6 +381,7 @@ void scoreboard::ExecutionLoop(ifstream &ifs)
 {
     int fu, l; bool ReadNext = true, ph; string inst;
     InstFormat inststruct;
+    cycle = 0;
     while(true)
     {
         if(ReadNext)
@@ -390,19 +391,20 @@ void scoreboard::ExecutionLoop(ifstream &ifs)
         }
         ReadNext = issue(inststruct);
         cycle += 1;
+        if(ReadNext) cout<<"Issued ";
         for(fu = 0; fu < NUMFU; fu++)
         {
             l = fu_status[fu].InstStatus.size();
             switch(l)
             {
                 case 1: ph = readOperands(fu); 
-                        if(ph) {cout<<"READ Operands "<<fu<<endl;}
+                        if(ph) {cout<<"READ Operands "<<fu;}
                         break;
                 case 2: ph = execute(fu); 
-                        if(ph) {cout<<"executed "<<fu<<endl;}
+                        if(ph) {cout<<"executed "<<fu;}
                         break;
                 case 3: ph = writeResult(fu); 
-                        if(ph) {cout<<"written result "<<fu<<endl;}
+                        if(ph) {cout<<"written result "<<fu;}
                         break;
             }
         }    
