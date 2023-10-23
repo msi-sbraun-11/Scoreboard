@@ -221,7 +221,7 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(ADDER, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADDER].InstStatus.push_back(cycle+1);
+                    fu_status[ADDER].InstStatus.push_back(cycle);
                 }    
                 break;
 
@@ -231,7 +231,7 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(ADDER, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADDER].InstStatus.push_back(cycle+1);
+                    fu_status[ADDER].InstStatus.push_back(cycle);
                 }    
                 break;
 
@@ -241,14 +241,14 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(MUL1, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADD1].InstStatus.push_back(cycle+1);
+                    fu_status[ADD1].InstStatus.push_back(cycle);
                 }    
                 else if(!fu_status[MUL2].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), IFormat.d) == FloatRegStatus.end())
                 {
                     setrecord(MUL2, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[MUL2].InstStatus.push_back(cycle+1);
+                    fu_status[MUL2].InstStatus.push_back(cycle);
                 }
                 break;
 
@@ -258,14 +258,14 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(ADD1, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADD1].InstStatus.push_back(cycle+1);
+                    fu_status[ADD1].InstStatus.push_back(cycle);
                 }
                 else if(!fu_status[ADD2].busy &&
                     find(FloatRegStatus.begin(), FloatRegStatus.end(), IFormat.d) == FloatRegStatus.end())
                 {
                     setrecord(ADD2, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[ADD2].InstStatus.push_back(cycle+1);
+                    fu_status[ADD2].InstStatus.push_back(cycle);
                 }
                 break;
 
@@ -275,7 +275,7 @@ bool scoreboard::issue(InstFormat IFormat)
                 {
                     setrecord(DIV1, optab[IFormat.op_string], IFormat.d, IFormat.s, IFormat.t, IFormat.imm);
                     issued = true;
-                    fu_status[DIV1].InstStatus.push_back(cycle+1);
+                    fu_status[DIV1].InstStatus.push_back(cycle);
                 }
                 break;
     }    
@@ -285,6 +285,7 @@ bool scoreboard::issue(InstFormat IFormat)
 bool scoreboard::readOperands(int fu) // doesn't need any more arguments because all the data that it needs is present in the status table
 {
     //cout<<fu<<" "<<cycle<<" "<<"readOperands"<<endl;
+    // cycle += 1;
     auto &rec = fu_status[fu];
     if(rec.op == STORE)
     {
@@ -315,6 +316,7 @@ bool scoreboard::readOperands(int fu) // doesn't need any more arguments because
 
 bool scoreboard::execute(int fu)
 {
+    // cycle += 1;
     auto &rec = fu_status[fu];
     if(rec.StallsLeft)
     {
@@ -347,6 +349,7 @@ bool scoreboard::execute(int fu)
 
 bool scoreboard::writeResult(int fu)
 {
+    // cycle += 1;
     auto &rec = fu_status[fu];
     if(rec.op != STORE)
     {
@@ -390,8 +393,7 @@ void scoreboard::ExecutionLoop(ifstream &ifs)
             inststruct = Parse(inst);
         }
         ReadNext = issue(inststruct);
-        cycle += 1;
-        if(ReadNext) cout<<"Issued ";
+        if(ReadNext) {cout<<"Issued "<<cycle<<endl;}
         for(fu = 0; fu < NUMFU; fu++)
         {
             l = fu_status[fu].InstStatus.size();
