@@ -1,2 +1,2 @@
 # Scoreboard
-Implementing the Scoreboarding algorithm in C
+Implementing the Scoreboarding algorithm in C++
