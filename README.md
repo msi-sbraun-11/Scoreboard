@@ -1,6 +1,12 @@
 # Scoreboard
 Implementing the Scoreboarding algorithm in C++.  The scoreboarding algorithm in computer architecture manages out-of-order instruction execution while handling data hazards and resource conflicts. It tracks the status of instructions, ensuring proper synchronization of operands and functional units.
 
+The key stages are:
+  1. **Issue**: Instructions are decoded and checked for hazards.
+  2. **Read**: Instructions wait until operands are available.
+  3. **Execute**: Instructions are executed when resources are free.
+  4. **Write-back**: Results are written to registers if no hazards exist
+
 There are 3 parts to the Scoreboard:
   1. _Instruction status_ — Indicates which of the four steps the instruction is in.
   2. _Functional unit status_ — Indicates the state of the functional unit (FU). There are nine fields for each functional unit:
